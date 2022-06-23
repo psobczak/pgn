@@ -1,4 +1,4 @@
-use std::{fs::File, io::BufRead, io::BufReader, path::Path};
+use std::{collections::VecDeque, fs::File, io::BufRead, io::BufReader, path::Path};
 
 use chrono::NaiveDate;
 use thiserror::Error;
@@ -35,12 +35,19 @@ pub enum Tag {
     Termination(String),
 }
 
-#[derive(Debug)]
-pub struct Pgn {
-    tags: Vec<Tag>,
+#[derive(Debug, PartialEq, Eq)]
+pub enum Player<'a> {
+    Black(&'a str),
+    White(&'a str),
 }
 
-impl Pgn {
+#[derive(Debug)]
+pub struct Pgn<'a> {
+    tags: Vec<Tag>,
+    moves: VecDeque<Player<'a>>,
+}
+
+impl Pgn<'_> {
     pub fn new<P>(path: P) -> std::io::Result<Self>
     where
         P: AsRef<Path>,
@@ -52,6 +59,7 @@ impl Pgn {
                 .flatten()
                 .flat_map(|s| Tag::try_from(s.as_ref()))
                 .collect(),
+            moves: VecDeque::default(),
         })
     }
 
@@ -105,5 +113,33 @@ impl TryFrom<&str> for Tag {
             ("Termination", termination) => Ok(Tag::Termination(termination)),
             _ => Err(TagError::UnknownTag(data.0.to_string())),
         }
+    }
+}
+
+impl<'a> From<(&'a str, &'a str)> for Player<'a> {
+    fn from(value: (&str, &'a str)) -> Self {
+        let value = (value.0.parse::<u16>().unwrap(), value.1);
+        match (value.0 % 2 == 0, value.1) {
+            (true, chess_move) => Player::Black(chess_move),
+            (false, chess_move) => Player::White(chess_move),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn should_properly_assing_player_to_move() {
+        let first_chess_move = ("1", "e4");
+        let second_chess_move = ("2", "c6");
+        let third_chess_move = ("3", "Nf3");
+        let fourth_chess_move = ("4", "exd5");
+
+        assert_eq!(Player::from(first_chess_move), Player::White("e4"));
+        assert_eq!(Player::from(second_chess_move), Player::Black("c6"));
+        assert_eq!(Player::from(third_chess_move), Player::White("Nf3"));
+        assert_eq!(Player::from(fourth_chess_move), Player::Black("exd5"));
     }
 }
