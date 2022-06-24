@@ -1,7 +1,10 @@
 use std::{collections::VecDeque, fs::File, io::BufRead, io::BufReader, path::Path};
 
 use chrono::{NaiveDate, NaiveTime};
+use regex::Regex;
 use thiserror::Error;
+
+use lazy_static::lazy_static;
 
 #[derive(Debug, Hash, PartialEq, Eq, Error)]
 pub enum TagError {
@@ -38,9 +41,9 @@ pub enum Tag {
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub enum Move {
-    Black(String),
-    White(String),
+pub struct Move {
+    white: String,
+    black: String,
 }
 
 #[derive(Debug)]
@@ -64,6 +67,10 @@ impl Pgn {
 
     pub fn tags(&self) -> &[Result<Tag, TagError>] {
         self.tags.as_ref()
+    }
+
+    pub fn moves(&self) -> &VecDeque<Move> {
+        &self.moves
     }
 }
 
@@ -123,10 +130,9 @@ impl TryFrom<&str> for Tag {
 
 impl From<(&str, &str)> for Move {
     fn from(value: (&str, &str)) -> Self {
-        let value = (value.0.parse::<u16>().unwrap(), value.1);
-        match (value.0 % 2 == 0, value.1) {
-            (true, chess_move) => Move::Black(chess_move.to_string()),
-            (false, chess_move) => Move::White(chess_move.to_string()),
+        Move {
+            white: value.0.to_string(),
+            black: value.1.to_string(),
         }
     }
 }
@@ -140,6 +146,10 @@ fn parse_tags(lines: &[String]) -> Vec<Result<Tag, TagError>> {
 }
 
 fn parse_moves(line: &[String]) -> VecDeque<Move> {
+    lazy_static! {
+        static ref REGEX: Regex = Regex::new(r"\d+.\s").unwrap();
+    }
+
     let line = line
         .iter()
         .filter(|line| !line.starts_with('[') && !line.is_empty())
@@ -147,26 +157,19 @@ fn parse_moves(line: &[String]) -> VecDeque<Move> {
         .collect::<Vec<&str>>()
         .join(" ");
 
-    let moves = line.split(pat)
-
     println!("{}", line);
 
-    VecDeque::new()
-}
-#[cfg(test)]
-mod tests {
-    use super::*;
+    let mut vec = VecDeque::new();
 
-    #[test]
-    fn should_properly_assing_move_to_move() {
-        let first_chess_move = ("1", "e4");
-        let second_chess_move = ("2", "c6");
-        let third_chess_move = ("3", "Nf3");
-        let fourth_chess_move = ("4", "exd5");
+    for raw_move in REGEX.split(&line).skip(1) {
+        let raw_move = raw_move.trim();
 
-        assert_eq!(Move::from(first_chess_move), Move::White("e4".to_string()));
-        assert_eq!(Move::from(second_chess_move), Move::Black("c6".to_string()));
-        assert_eq!(Move::from(third_chess_move), Move::White("Nf3".to_string()));
-        assert_eq!(Move::from(fourth_chess_move), Move::Black("exd5".to_string()));
+        println!("{}", raw_move);
+
+        let split = raw_move.split_once(" ");
+        let chess_move = Move::from(split.unwrap());
+        vec.push_back(chess_move);
     }
+
+    vec
 }

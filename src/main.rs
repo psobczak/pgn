@@ -13,5 +13,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("{:?}", line);
     }
 
+    for chess_move in pgn.moves() {
+        println!("{:?}", chess_move);
+    }
+
     Ok(())
 }
